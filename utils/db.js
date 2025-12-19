@@ -1,33 +1,48 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const connection = {
+  isConnected: false,
+};
 
-if (!MONGODB_URI) {
-  throw new Error("❌ MONGODB_URI is not defined");
-}
-
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
-
-export default async function connectDb() {
-  if (cached.conn) {
-    return cached.conn;
+async function connectDb() {
+  if (connection.isConnected) {
+    console.log("✅ Using existing database connection");
+    return;
   }
 
-  if (!cached.promise) {
-    cached.promise = mongoose
-      .connect(MONGODB_URI, {
-        bufferCommands: false,
-      })
-      .then((mongoose) => {
-        console.log("🆕 New database connection established");
-        return mongoose;
-      });
+  if (!process.env.MONGODB_URI) {
+    throw new Error("❌ MONGODB_URI is not defined");
   }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+  if (mongoose.connections.length > 0) {
+    const state = mongoose.connections[0].readyState;
+
+    if (state === 1) {
+      console.log("♻️ Reusing existing mongoose connection");
+      connection.isConnected = true;
+      return;
+    }
+
+    await mongoose.disconnect();
+  }
+
+  const db = await mongoose.connect(process.env.MONGODB_URI);
+
+  console.log("🆕 New database connection established");
+  connection.isConnected = db.connections[0].readyState === 1;
 }
+
+async function disconnectDb() {
+  if (connection.isConnected) {
+    if (process.env.NODE_ENV === "production") {
+      await mongoose.disconnect();
+      connection.isConnected = false;
+      console.log("🔌 Database disconnected");
+    } else {
+      console.log("ℹ️ Not disconnecting DB in development");
+    }
+  }
+}
+
+const db = { connectDb, disconnectDb };
+export default db;

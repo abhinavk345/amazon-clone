@@ -25,16 +25,13 @@ export default function Home({ products }: any) {
     </>
   );
 }
-
 export async function getServerSideProps() {
-  // ✅ server-only imports (VERY IMPORTANT)
-  const { default: connectDb } = await import("../utils/db");
+  // ✅ server-only imports
+  const { default: db } = await import("../utils/db");
   const { default: Product } = await import("../models/Product");
 
-  // ✅ wait for DB connection
-  await connectDb();
+  await db.connectDb();
 
-  // ✅ safe query
   const products = await Product.find().lean();
 
   return {
@@ -43,3 +40,4 @@ export async function getServerSideProps() {
     },
   };
 }
+ 
